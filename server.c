@@ -5,90 +5,93 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#define MAX 80
+
+
+#define MAX 4096
 #define PORT 8080
 #define SA struct sockaddr
    
-// Function designed for chat between client and server.
-void func(int connfd)
-{
-    char buff[MAX];
+// Função de chat.
+void myChat(int connfd){
+    char msg[MAX];
     int n;
-    // infinite loop for chat
     for (;;) {
-        bzero(buff, MAX);
+        // zera o buffer
+        bzero(msg, MAX);
    
-        // read the message from client and copy it in buffer
-        read(connfd, buff, sizeof(buff));
-        // print buffer which contains the client contents
-        printf("From client: %s\t To client : ", buff);
-        bzero(buff, MAX);
+        // lê a mensagem do cliente e salva no buffer
+        read(connfd, msg, sizeof(msg));
+        printf("Mensagem do cliente: %s", msg);
+        if((strncmp(msg, "sair", 4)) == 0){
+            printf("Cliente saiu...\n");
+            break;
+        }
+        printf("\t Para o cliente: ");
+        // zera o buffer
+        bzero(msg, MAX);
         n = 0;
-        // copy server message in the buffer
-        while ((buff[n++] = getchar()) != '\n')
+        // Recebendo nova mensagem
+        while ((msg[n++] = getchar()) != '\n')
             ;
    
-        // and send that buffer to client
-        write(connfd, buff, sizeof(buff));
-   
-        // if msg contains "Exit" then server exit and chat ended.
-        if (strncmp("exit", buff, 4) == 0) {
-            printf("Server Exit...\n");
+        // escreve a mensagem do cliente no terminal
+        write(connfd, msg, sizeof(msg));
+        // checa se a mensagem do cliente é "sair" e termina a conexão.
+        if (strncmp("sair", msg, 4) == 0) {
+            printf("Servidor saiu......\n");
             break;
         }
     }
 }
    
-// Driver function
-int main()
-{
+
+int main(){
     int sockfd, connfd, len;
     struct sockaddr_in servaddr, cli;
    
-    // socket create and verification
+    // criação e verificação do socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1) {
-        printf("socket creation failed...\n");
+        printf("Criacao do socket falhou...\n");
         exit(0);
     }
     else
-        printf("Socket successfully created..\n");
+        printf("Socket criado com sucesso...\n");
     bzero(&servaddr, sizeof(servaddr));
    
-    // assign IP, PORT
+    // definição do IP, PORT
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_port = htons(PORT);
    
-    // Binding newly created socket to given IP and verification
+    // Define sockfd como o "nome" do socket
     if ((bind(sockfd, (SA*)&servaddr, sizeof(servaddr))) != 0) {
-        printf("socket bind failed...\n");
+        printf("Coneccao do socket falhou...\n");
         exit(0);
     }
     else
-        printf("Socket successfully binded..\n");
+        printf("Coneccao bem sucedida..\n");
    
-    // Now server is ready to listen and verification
+    // Server pronto para ouvir mensagens
     if ((listen(sockfd, 5)) != 0) {
-        printf("Listen failed...\n");
+        printf("Recebimento de mensagens falhou...\n");
         exit(0);
     }
     else
-        printf("Server listening..\n");
+        printf("Servidor ouvindo..\n");
     len = sizeof(cli);
    
-    // Accept the data packet from client and verification
+    // Aceita e verifica o pacote de dados do cliente
     connfd = accept(sockfd, (SA*)&cli, &len);
     if (connfd < 0) {
-        printf("server accept failed...\n");
+        printf("Servidor nao aceitou pacote do cliente...\n");
         exit(0);
     }
     else
-        printf("server accept the client...\n");
+        printf("Servidor aceitou pacote do cliente...\n");
    
-    // Function for chatting between client and server
-    func(connfd);
-   
-    // After chatting close the socket
+    // Inicialização do chat
+    myChat(connfd);
+
     close(sockfd);
 }

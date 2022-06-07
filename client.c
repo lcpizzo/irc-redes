@@ -1,64 +1,91 @@
-
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#define MAX 80
+
+// Número máximo de caracteres na mensagem
+#define MAX 5
+// Porta padrão para comunicação
 #define PORT 8080
 #define SA struct sockaddr
-void func(int sockfd)
-{
-    char buff[MAX];
+
+void myWrite(int sockfd, char *msg){
+    int tam = strlen(msg);
+    char temp[MAX];
+    printf("%s\t%s", &msg, msg);
+    for(int i=0; i < tam/MAX; i++){
+        *msg += MAX * i;
+        strncpy(temp, *(msg+(MAX*i)), MAX);
+        write(sockfd, temp, MAX);
+    }
+    write(sockfd, msg, tam%MAX);
+}
+
+void myChat(int sockfd){
+
+    char *msg = (char*)calloc(10 * MAX, sizeof(char));
     int n;
-    for (;;) {
-        bzero(buff, sizeof(buff));
-        printf("Enter the string : ");
+    for(;;){
+        // Setando o buffer da mensagem para zero
         n = 0;
-        while ((buff[n++] = getchar()) != '\n')
-            ;
-        write(sockfd, buff, sizeof(buff));
-        bzero(buff, sizeof(buff));
-        read(sockfd, buff, sizeof(buff));
-        printf("From Server : %s", buff);
-        if ((strncmp(buff, "exit", 4)) == 0) {
-            printf("Client Exit...\n");
+        printf("Mensagem: ");
+        while((msg[n++] = getchar()) != '\n');
+        myWrite(sockfd, msg);
+        if((strncmp(msg, "sair", 4)) == 0){
+            printf("Cliente saiu...\n");
             break;
         }
+        bzero(msg, strlen(msg));
+
+        read(sockfd, msg, strlen(msg));
+        printf("Do servidor: %s", msg);
+        if((strncmp(msg, "sair", 4)) == 0){
+            printf("Cliente saiu...\n");
+            break;
+        }
+        bzero(msg, strlen(msg));
     }
 }
    
-int main()
-{
+int main(){
     int sockfd, connfd;
     struct sockaddr_in servaddr, cli;
    
-    // socket create and verification
+    // criacao e verificacao do socket 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1) {
-        printf("socket creation failed...\n");
+    if(sockfd == -1){
+        printf("Criacao do socket falhou...\n");
         exit(0);
     }
     else
-        printf("Socket successfully created..\n");
+        printf("Socket criado com sucesso...\n");
     bzero(&servaddr, sizeof(servaddr));
    
-    // assign IP, PORT
+    // define IP, PORT
     servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    // endereço "127.0.0.1" é o localhost (própria máquina)
+    char ip[10] = "";
+    printf("Digite o IP que gostaria de conectar('' para localhost):\n");
+    scanf("%[^\n]s", ip);
+    int ch;
+    while ((ch = getchar()) != '\n' && ch != EOF)
+        ;
+    if(strlen(ip) <= 3) strcpy(ip, "127.0.0.1");
+    servaddr.sin_addr.s_addr = inet_addr(ip);
     servaddr.sin_port = htons(PORT);
    
-    // connect the client socket to server socket
-    if (connect(sockfd, (SA*)&servaddr, sizeof(servaddr)) != 0) {
-        printf("connection with the server failed...\n");
+    // Conecta o socket do cliente ao socket do servidor
+    if(connect(sockfd, (SA*)&servaddr, sizeof(servaddr)) != 0){
+        printf("Coneccao com o servidor falhou...\n");
         exit(0);
     }
     else
-        printf("connected to the server..\n");
+        printf("Conectado com o servidor...\n");
    
-    // function for chat
-    func(sockfd);
+    // Função de chat
+    myChat(sockfd);
    
-    // close the socket
+    // Fecha o socket
     close(sockfd);
 }
