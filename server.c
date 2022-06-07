@@ -7,13 +7,44 @@
 #include <sys/types.h>
 
 
-#define MAX 4096
+#define MAX 5
 #define PORT 8080
 #define SA struct sockaddr
-   
+
+char *readline(FILE *stream) {
+    char *string = (char *)calloc(MAX + 1, sizeof(char));
+    int pos = 0;
+    do{
+		if(pos % MAX == 0){
+			string = (char *)realloc(string, (pos / MAX + 1) * MAX);
+        }
+    	string[pos] = (char) fgetc(stream);
+    }while (string[pos++] != '\n' && !feof(stream));
+    string[strlen(string)-1] = '\n';
+    
+    return string;
+}
+
+void myWrite(int connfd, char *msg){
+    int tam = strlen(msg);
+    char temp[MAX];
+
+    for(int i=0; i < tam/MAX; i++){
+        bzero(temp, MAX);
+        strncpy(temp, msg, MAX);
+        write(connfd, temp, MAX);
+        //printf("debug: %s\n", temp);
+        msg += MAX;
+    }
+    write(connfd, msg, tam%MAX);
+    //printf("debug: %s\n", msg);
+    msg -= (tam/MAX) * MAX;
+    //printf("original: %s", msg);
+}
+
 // Função de chat.
 void myChat(int connfd){
-    char msg[MAX];
+    char *msg = (char *)calloc(MAX + 1, sizeof(char));
     int n;
     for (;;) {
         do{    
@@ -34,11 +65,10 @@ void myChat(int connfd){
         bzero(msg, MAX);
         n = 0;
         // Recebendo nova mensagem
-        while ((msg[n++] = getchar()) != '\n')
-            ;
+        msg = readline(stdin);
    
         // escreve a mensagem do cliente no terminal
-        write(connfd, msg, sizeof(msg));
+        myWrite(connfd, msg);
         // checa se a mensagem do cliente é "sair" e termina a conexão.
         if (strncmp("sair", msg, 4) == 0) {
             printf("Servidor saiu......\n");

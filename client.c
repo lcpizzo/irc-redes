@@ -10,53 +10,66 @@
 #define PORT 8080
 #define SA struct sockaddr
 
+char *readline(FILE *stream) {
+    char *string = (char *)calloc(MAX + 1, sizeof(char));
+    int pos = 0;
+    
+    do{
+		if (pos % MAX == 0) {
+			string = (char *)realloc(string, (pos / MAX + 1) * MAX);
+        }
+    	string[pos] = (char)fgetc(stream);
+    }while(string[pos++] != '\n' && !feof(stream));
+    string[strlen(string)-1] = '\n';
+    
+    return string;
+}
+
 void myWrite(int sockfd, char *msg){
     int tam = strlen(msg);
     char temp[MAX];
-    printf("%x\t%s", msg, msg);
+
     for(int i=0; i < tam/MAX; i++){
+        bzero(temp, MAX);
         strncpy(temp, msg, MAX);
         write(sockfd, temp, MAX);
-        printf("debug: %s\n", temp);
+        //printf("debug: %s\n", temp);
         msg += MAX;
     }
     write(sockfd, msg, tam%MAX);
-    printf("debug: %s\n", msg);
+    //printf("debug: %s\n", msg);
     msg -= (tam/MAX) * MAX;
-    printf("original: %s", msg);
+    //printf("original: %s", msg);
 }
 
 void myChat(int sockfd){
-    char *msg = NULL;
-    msg = (char*)calloc(MAX, sizeof(char));
+    char *msg = (char*)calloc(MAX + 1, sizeof(char));
     
     int n = 0;
     for(;;){
         // Setando o buffer da mensagem para zero
+        bzero(msg, strlen(msg));
         n = 0;
         printf("Mensagem: ");
-        while((msg[n++] = getchar()) != '\n'){
-            if(n%MAX == 0){
-                msg = (char *)realloc(msg, (n/MAX + 1) * MAX * sizeof(char));
-                printf("realocado!, %d %d\n", strlen(msg), (n/MAX + 1) * MAX);
-            }
-        }
+        msg = readline(stdin);
 
         myWrite(sockfd, msg);
         if((strncmp(msg, "sair", 4)) == 0){
             printf("Cliente saiu...\n");
             break;
         }
-        bzero(msg, strlen(msg));
 
-        read(sockfd, msg, strlen(msg));
-        printf("mensagem = %s\n", msg);
-        printf("Do servidor: %s", msg);
-        if((strncmp(msg, "sair", 4)) == 0){
-            printf("Cliente saiu...\n");
-            break;
-        }
-        bzero(msg, strlen(msg));
+        do{
+            bzero(msg, strlen(msg));
+            
+            read(sockfd, msg, sizeof(msg));
+            printf("Do servidor: %s\n", msg);
+            if((strncmp(msg, "sair", 4)) == 0){
+                printf("Cliente saiu...\n");
+                break;
+            }
+
+        }while(msg[strlen(msg)-1] != '\n');
     }
 }
    
@@ -81,8 +94,7 @@ int main(){
     printf("Digite o IP que gostaria de conectar('' para localhost):\n");
     scanf("%[^\n]s", ip);
     int ch;
-    while ((ch = getchar()) != '\n' && ch != EOF)
-        ;
+    while ((ch = getchar()) != '\n' && ch != EOF);
     if(strlen(ip) <= 3) strcpy(ip, "127.0.0.1");
     servaddr.sin_addr.s_addr = inet_addr(ip);
     servaddr.sin_port = htons(PORT);
