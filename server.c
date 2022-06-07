@@ -11,28 +11,27 @@
 #define PORT 8080
 #define SA struct sockaddr
 
-char *readline(FILE *stream) {
-    char *string = (char *)calloc(MAX + 1, sizeof(char));
+int readline(char **msg, FILE *stream) {
     int pos = 0;
+    
     do{
 		if(pos % MAX == 0){
-			string = (char *)realloc(string, (pos / MAX + 1) * MAX);
+			*msg = (char *)realloc(*msg, (pos / MAX + 1) * MAX);
         }
-    	string[pos] = (char) fgetc(stream);
-    }while (string[pos++] != '\n' && !feof(stream));
-    string[strlen(string)-1] = '\n';
-    
-    return string;
+    	(*msg)[pos] = (char) fgetc(stream);
+    }while((*msg)[pos++] != '\n' && !feof(stream));
+    (*msg)[pos-1] = '\n';
+
+    return pos;
 }
 
-void myWrite(int connfd, char *msg){
-    int tam = strlen(msg);
-    char temp[MAX];
+void myWrite(int connfd, char *msg, int tam){
+    char temp[MAX + 1];
 
     for(int i=0; i < tam/MAX; i++){
-        bzero(temp, MAX);
+        bzero(temp, MAX + 1);
         strncpy(temp, msg, MAX);
-        write(connfd, temp, MAX);
+        write(connfd, temp, MAX + 1);
         //printf("debug: %s\n", temp);
         msg += MAX;
     }
@@ -49,29 +48,31 @@ void myChat(int connfd){
     for (;;) {
         do{    
             // zera o buffer
-            bzero(msg, MAX);
+            bzero(msg, strlen(msg));
         
             // lê a mensagem do cliente e salva no buffer
-            read(connfd, msg, sizeof(msg));
+            read(connfd, msg, MAX);
             printf("Mensagem do cliente: %s\n", msg);
-            if((strncmp(msg, "sair", 4)) == 0){
-                printf("Cliente saiu...\n");
-                break;
-            }
         }while(msg[strlen(msg)-1] != '\n');
+        
+        if((strncmp(msg, "sair", 4)) == 0){
+            printf("Cliente saiu...\n");
+            free(msg);
+            break;
+        }
         
         printf("\t Para o cliente: ");
         // zera o buffer
         bzero(msg, MAX);
-        n = 0;
         // Recebendo nova mensagem
-        msg = readline(stdin);
+        n = readline(&msg, stdin);
    
         // escreve a mensagem do cliente no terminal
-        myWrite(connfd, msg);
+        myWrite(connfd, msg, n);
         // checa se a mensagem do cliente é "sair" e termina a conexão.
         if (strncmp("sair", msg, 4) == 0) {
             printf("Servidor saiu......\n");
+            free(msg);
             break;
         }
     }
