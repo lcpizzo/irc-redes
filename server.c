@@ -16,16 +16,19 @@ void myChat(int connfd){
     char msg[MAX];
     int n;
     for (;;) {
-        // zera o buffer
-        bzero(msg, MAX);
-   
-        // lê a mensagem do cliente e salva no buffer
-        read(connfd, msg, sizeof(msg));
-        printf("Mensagem do cliente: %s", msg);
-        if((strncmp(msg, "sair", 4)) == 0){
-            printf("Cliente saiu...\n");
-            break;
-        }
+        do{    
+            // zera o buffer
+            bzero(msg, MAX);
+        
+            // lê a mensagem do cliente e salva no buffer
+            read(connfd, msg, sizeof(msg));
+            printf("Mensagem do cliente: %s\n", msg);
+            if((strncmp(msg, "sair", 4)) == 0){
+                printf("Cliente saiu...\n");
+                break;
+            }
+        }while(msg[strlen(msg)-1] != '\n');
+        
         printf("\t Para o cliente: ");
         // zera o buffer
         bzero(msg, MAX);

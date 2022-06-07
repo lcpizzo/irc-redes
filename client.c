@@ -13,24 +13,35 @@
 void myWrite(int sockfd, char *msg){
     int tam = strlen(msg);
     char temp[MAX];
-    printf("%s\t%s", &msg, msg);
+    printf("%x\t%s", msg, msg);
     for(int i=0; i < tam/MAX; i++){
-        *msg += MAX * i;
-        strncpy(temp, *(msg+(MAX*i)), MAX);
+        strncpy(temp, msg, MAX);
         write(sockfd, temp, MAX);
+        printf("debug: %s\n", temp);
+        msg += MAX;
     }
     write(sockfd, msg, tam%MAX);
+    printf("debug: %s\n", msg);
+    msg -= (tam/MAX) * MAX;
+    printf("original: %s", msg);
 }
 
 void myChat(int sockfd){
-
-    char *msg = (char*)calloc(10 * MAX, sizeof(char));
-    int n;
+    char *msg = NULL;
+    msg = (char*)calloc(MAX, sizeof(char));
+    
+    int n = 0;
     for(;;){
         // Setando o buffer da mensagem para zero
         n = 0;
         printf("Mensagem: ");
-        while((msg[n++] = getchar()) != '\n');
+        while((msg[n++] = getchar()) != '\n'){
+            if(n%MAX == 0){
+                msg = (char *)realloc(msg, (n/MAX + 1) * MAX * sizeof(char));
+                printf("realocado!, %d %d\n", strlen(msg), (n/MAX + 1) * MAX);
+            }
+        }
+
         myWrite(sockfd, msg);
         if((strncmp(msg, "sair", 4)) == 0){
             printf("Cliente saiu...\n");
@@ -39,6 +50,7 @@ void myChat(int sockfd){
         bzero(msg, strlen(msg));
 
         read(sockfd, msg, strlen(msg));
+        printf("mensagem = %s\n", msg);
         printf("Do servidor: %s", msg);
         if((strncmp(msg, "sair", 4)) == 0){
             printf("Cliente saiu...\n");
