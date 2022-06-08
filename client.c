@@ -5,26 +5,23 @@
 #include <sys/socket.h>
 
 // Número máximo de caracteres na mensagem
-<<<<<<< HEAD
 #define MAX 4096
-=======
-#define MAX 5 
->>>>>>> cb6084459f01722a28cc030849d3a8eb069aa020
 // Porta padrão para comunicação
 #define PORT 8080
 #define SA struct sockaddr
 #define FALSE 0
 #define TRUE 1
 
-int readline(char **msg, FILE *stream) {
+char *readline(FILE *stream) {
+    char *string = (char *)calloc(MAX + 1, sizeof(char));
     int pos = 0;
+    
     do{
-<<<<<<< HEAD
-        if(pos % MAX == 0){
+        if (pos % MAX == 0) {
             string = (char *)realloc(string, (pos / MAX + 1) * MAX);
         }
-        string[pos] = (char) fgetc(stream);
-    }while (string[pos++] != '\n' && !feof(stream));
+        string[pos] = (char)fgetc(stream);
+    }while(string[pos++] != '\n' && !feof(stream));
     string[strlen(string)-1] = '\n';
     
     return string;
@@ -33,8 +30,8 @@ int readline(char **msg, FILE *stream) {
 int myRead(int connfd, char *msg, int *exit){
     // loop para receber mensagens de varias partes
     for(;;){
-        bzero(msg, sizeof(msg));
-        read(connfd, msg, sizeof(msg));
+        bzero(msg, MAX);
+        read(connfd, msg, MAX);
         if(strncmp(msg, "AK", 2) == 0){
             //termina comm
             write(connfd, "AK", 2);
@@ -60,23 +57,9 @@ int myRead(int connfd, char *msg, int *exit){
 }
 
 int myWrite(int connfd, char *msg, int *exit){
-    char temp[MAX];
-=======
-		if (pos % MAX == 0) {
-			*msg = (char *)realloc(*msg, (pos / MAX + 1) * MAX);
-        }
-    	(*msg)[pos] = (char)fgetc(stream);
-    }while((*msg)[pos++] != '\n' && !feof(stream));
-    (*msg)[pos-2] = '\n';
-
-    return pos;
-}
-
-void myWrite(int sockfd, char *msg, int tam){
     char temp[MAX + 1];
->>>>>>> cb6084459f01722a28cc030849d3a8eb069aa020
 
-    bzero(msg, sizeof(msg));
+    bzero(msg, MAX);
     printf("Para o cliente: ");
     msg = readline(stdin);
 
@@ -84,17 +67,12 @@ void myWrite(int sockfd, char *msg, int tam){
     if(strncmp(msg, "sair", 4) == 0)
         *exit = TRUE;
 
-    int tam = strlen(msg)-1;
+    int tam = strlen(msg)+1;
     // loop para dividir a msg em varias partes
     for(int i=0; i < tam/MAX; i++){
         bzero(temp, MAX + 1);
-        strncpy(temp, msg, MAX);
-<<<<<<< HEAD
-=======
-        temp[MAX] = '\0';
-        write(sockfd, temp, MAX + 1);
-        //printf("debug: %s\n", temp);
->>>>>>> cb6084459f01722a28cc030849d3a8eb069aa020
+        strncpy(temp, msg, MAX+1);
+        write(connfd, temp, MAX + 1);
         msg += MAX;
         write(connfd, temp, MAX);
         bzero(temp, sizeof(temp));
@@ -105,8 +83,7 @@ void myWrite(int sockfd, char *msg, int tam){
         }
     }
     write(connfd, msg, tam%MAX);
-    // praq?
-    //msg -= (tam/MAX) * MAX;
+
     read(connfd, temp, sizeof(temp));
     if(strncmp(temp, "AK", 2)!= 0){
         printf("erro\n");
@@ -126,14 +103,21 @@ void myWrite(int sockfd, char *msg, int tam){
     return FALSE;
 }
 
-void myChat(int sockfd){
+void myChat(int connfd){
     int exit = FALSE, erro = FALSE;
     char *msg = (char*)calloc(MAX + 1, sizeof(char));
-<<<<<<< HEAD
     
     for(;;){
-        // Setando o buffer da mensagem para zero
-        erro = myWrite(sockfd, msg, &exit);
+        erro = myWrite(connfd, msg, &exit);
+        if(erro)
+            break;
+
+        if(exit){
+            printf("Cliente saiu...");
+            break;
+        }
+
+        erro = myRead(connfd, msg, &exit);
         if(erro)
             break;
 
@@ -141,52 +125,16 @@ void myChat(int sockfd){
             printf("Servidor saiu...");
             break;
         }
-
-        erro = myRead(sockfd, msg, &exit);
-        if(erro)
-            break;
-
-        if(exit){
-            printf("Cliente saiu...");
-=======
-    int n = 0;
-    
-    for(;;){
-        // Setando o buffer da mensagem para zero
-        bzero(msg, strlen(msg));
-        printf("Mensagem: ");
-        n = readline(&msg, stdin);
-
-        myWrite(sockfd, msg, n);
-        if((strncmp(msg, "sair", 4)) == 0){
-            printf("Cliente saiu...\n");
-            free(msg);
-            break;
-        }
-
-        do{
-            bzero(msg, strlen(msg));
-            
-            read(sockfd, msg, sizeof(msg));
-            printf("\tDo servidor: %s\n", msg);
-        }while(msg[strlen(msg)-1] != '\n');
-
-        if((strncmp(msg, "sair", 4)) == 0){
-            printf("Cliente saiu...\n");
-            free(msg);
->>>>>>> cb6084459f01722a28cc030849d3a8eb069aa020
-            break;
-        }
     }
-}
-   
+}  
+
 int main(){
-    int sockfd, connfd;
+    int connfd;
     struct sockaddr_in servaddr, cli;
    
     // criacao e verificacao do socket 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if(sockfd == -1){
+    connfd = socket(AF_INET, SOCK_STREAM, 0);
+    if(connfd == -1){
         printf("Criacao do socket falhou...\n");
         exit(0);
     }
@@ -207,7 +155,7 @@ int main(){
     servaddr.sin_port = htons(PORT);
    
     // Conecta o socket do cliente ao socket do servidor
-    if(connect(sockfd, (SA*)&servaddr, sizeof(servaddr)) != 0){
+    if(connect(connfd, (SA*)&servaddr, sizeof(servaddr)) != 0){
         printf("Coneccao com o servidor falhou...\n");
         exit(0);
     }
@@ -215,8 +163,8 @@ int main(){
         printf("Conectado com o servidor...\n");
    
     // Função de chat
-    myChat(sockfd);
+    myChat(connfd);
    
     // Fecha o socket
-    close(sockfd);
+    close(connfd);
 }

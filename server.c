@@ -6,33 +6,32 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-
 #define MAX 4096
 #define PORT 8080
 #define SA struct sockaddr
 #define FALSE 0
 #define TRUE 1
 
-int readline(char **msg, FILE *stream) {
+char *readline(FILE *stream) {
+    char *string = (char *)calloc(MAX + 1, sizeof(char));
     int pos = 0;
     
     do{
-		if(pos % MAX == 0){
-			*msg = (char *)realloc(*msg, (pos / MAX + 1) * MAX);
+        if (pos % MAX == 0) {
+            string = (char *)realloc(string, (pos / MAX + 1) * MAX);
         }
-    	(*msg)[pos] = (char) fgetc(stream);
-    }while((*msg)[pos++] != '\n' && !feof(stream));
-    (*msg)[pos-1] = '\n';
-
-    return pos;
+        string[pos] = (char)fgetc(stream);
+    }while(string[pos++] != '\n' && !feof(stream));
+    string[strlen(string)-1] = '\n';
+    
+    return string;
 }
 
-<<<<<<< HEAD
 int myRead(int connfd, char *msg, int *exit){
     // loop para receber mensagens de varias partes
     for(;;){
-        bzero(msg, sizeof(msg));
-        read(connfd, msg, sizeof(msg));
+        bzero(msg, MAX);
+        read(connfd, msg, MAX);
         if(strncmp(msg, "AK", 2) == 0){
             //termina comm
             write(connfd, "AK", 2);
@@ -58,14 +57,9 @@ int myRead(int connfd, char *msg, int *exit){
 }
 
 int myWrite(int connfd, char *msg, int *exit){
+    char temp[MAX+1];
 
-    char temp[MAX];
-=======
-void myWrite(int connfd, char *msg, int tam){
-    char temp[MAX + 1];
->>>>>>> cb6084459f01722a28cc030849d3a8eb069aa020
-
-    bzero(msg, sizeof(msg));
+    bzero(msg, MAX);
     printf("Para o servidor: ");
     msg = readline(stdin);
 
@@ -73,16 +67,12 @@ void myWrite(int connfd, char *msg, int tam){
     if(strncmp(msg, "sair", 4) == 0)
         *exit = TRUE;
 
-    int tam = strlen(msg)-1;
+    int tam = strlen(msg)+1;
     // loop para dividir a msg em varias partes
     for(int i=0; i < tam/MAX; i++){
         bzero(temp, MAX + 1);
         strncpy(temp, msg, MAX);
-<<<<<<< HEAD
-=======
         write(connfd, temp, MAX + 1);
-        //printf("debug: %s\n", temp);
->>>>>>> cb6084459f01722a28cc030849d3a8eb069aa020
         msg += MAX;
         write(connfd, temp, MAX);
         bzero(temp, sizeof(temp));
@@ -93,8 +83,7 @@ void myWrite(int connfd, char *msg, int tam){
         }
     }
     write(connfd, msg, tam%MAX);
-    // praq?
-    //msg -= (tam/MAX) * MAX;
+
     read(connfd, temp, sizeof(temp));
     if(strncmp(temp, "AK", 2)!= 0){
         printf("erro\n");
@@ -118,10 +107,9 @@ void myWrite(int connfd, char *msg, int tam){
 // Função de chat.
 void myChat(int connfd){
     int exit = FALSE, erro = FALSE;
-    
     char *msg = (char *)calloc(MAX + 1, sizeof(char));
+
     for (;;) {
-<<<<<<< HEAD
         // cliente envia a msg, server envia confirmaçao que recebeu:
         //   se acabou a msg cliente confirma a confirmaçao
         //   cc: cliente envia o resto da mensagem e volta pra cima
@@ -144,35 +132,6 @@ void myChat(int connfd){
 
         if(exit){
             printf("Servidor saiu...\n");
-=======
-        do{    
-            // zera o buffer
-            bzero(msg, strlen(msg));
-        
-            // lê a mensagem do cliente e salva no buffer
-            read(connfd, msg, MAX);
-            printf("Mensagem do cliente: %s\n", msg);
-        }while(msg[strlen(msg)-1] != '\n');
-        
-        if((strncmp(msg, "sair", 4)) == 0){
-            printf("Cliente saiu...\n");
-            free(msg);
-            break;
-        }
-        
-        printf("\t Para o cliente: ");
-        // zera o buffer
-        bzero(msg, MAX);
-        // Recebendo nova mensagem
-        n = readline(&msg, stdin);
-   
-        // escreve a mensagem do cliente no terminal
-        myWrite(connfd, msg, n);
-        // checa se a mensagem do cliente é "sair" e termina a conexão.
-        if (strncmp("sair", msg, 4) == 0) {
-            printf("Servidor saiu......\n");
-            free(msg);
->>>>>>> cb6084459f01722a28cc030849d3a8eb069aa020
             break;
         }
     }
@@ -227,5 +186,6 @@ int main(){
     // Inicialização do chat
     myChat(connfd);
 
+    // Fecha o socket
     close(sockfd);
 }
