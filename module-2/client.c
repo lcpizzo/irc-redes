@@ -30,40 +30,24 @@ typedef struct Message_t {
 #define QUIT 200
 
 int myWrite(int connfd, char *msg){
-    char temp[MAX_MSG + 1];
+	char rec[3];
+	bzero(rec, sizeof(rec));
 
-    int tam = strlen(msg)+1;
-    // loop para dividir a msg em varias partes
-    for(int i=0; i < tam/MAX_MSG; i++){
-        bzero(temp, MAX_MSG + 1);
-        strncpy(temp, msg, MAX_MSG+1);
-        write(connfd, temp, MAX_MSG + 1);
-        msg += MAX_MSG;
-        write(connfd, temp, MAX_MSG);
-        bzero(temp, sizeof(temp));
-        read(connfd, temp, sizeof(temp));
-        if(strncmp(temp, "AK", 2) != 0){
-            printf("erro\n");
-            break;
-        }
-    }
-    write(connfd, msg, tam%MAX_MSG);
+	// Sends the message
+	if(send(connfd, msg, sizeof(msg), 0) <= 0){
+		printf("erro no envio\n");
+		return -1;
+	}
 
-    read(connfd, temp, sizeof(temp));
-    if(strncmp(temp, "AK", 2)!= 0){
-        printf("erro\n");
-        return 1;
-    }
-
-    // envia a ultima confirmaçao indicando que acabou a mensagem
-    write(connfd, "AK", 2);
-
-    bzero(temp, sizeof(temp));
-    read(connfd, temp, sizeof(temp));
-    if(strncmp(temp, "AK", 2) != 0){
-        printf("erro\n");
-        return 1;
-    }
+	// Waits for the AK
+	if(recv(connfd, rec, sizeof(rec), 0) <= 0){
+		printf("erro no recebimento da resposta\n");
+		return -1;
+	}
+	if(strncmp(rec, "AK", 2) != 0){
+		printf("erro, resposta nao e AK\n");
+		return -1;
+	}
 
     return 0;
 }
@@ -169,7 +153,7 @@ void interruptionHandler(int dummy) {
     printf("\n'Ctrl + C' não é um comando válido!!\n");
 }
 
-void clienthread_send(void** params){
+void* clienthread_send(void** params){
 	int network_socket = *((int*)params[0]);
 	char user[51];
 	char input[4096];
@@ -199,6 +183,7 @@ int main() {
 	void* params[5];
 
     while(cmd != QUIT) {
+		bzero(input, sizeof(input));
         strcpy(input, readline(stdin));
 
 		if (feof(stdin)){
@@ -219,6 +204,7 @@ int main() {
 					int req = 3;
 					send(network_socket, &req, sizeof(req), 0);
 					send(network_socket, "/ping", strlen("/ping")+1, 0);
+					bzero(input, sizeof(input));
 					recv(network_socket, &input, sizeof(input), 0);
 					printf("%s\n", input);
 				} else {
@@ -240,7 +226,7 @@ int main() {
 				recv(network_socket, &input, sizeof(input), 0);
 				printf("%s\n", input);
 			}
-        } else {
+        } else if (input[0] != '\0'){
 			// texto eh uma mensagem
 			if(!conn){
 				printf("Voce deve estar conectado ao servidor para enviar mensagens. Use o comando /connect.\n");
@@ -251,7 +237,7 @@ int main() {
 				printf("Voce deve definir um nome de usuario antes de poder enviar mensagens. Use o comando /nickname [nome] para mudar seu nome.\n");
 				continue;
 			}
-			printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>: %s\n", input);
+			
 			params[0] = (void*)(&network_socket);
 			params[1] = (void*)(&user);
 			params[2] = (void*)(&input);
@@ -259,7 +245,6 @@ int main() {
 			pthread_create(&tid, NULL,
 				clienthread_send,
 				&params);
-			bzero(input, sizeof(input));
 		}
     }
 	// Suspend execution of

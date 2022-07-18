@@ -1,16 +1,3 @@
-/* 
-implementar algoritmo reader writer no servidor de modo que tem 2 threads concorrentes, uma de leitura outra de escrita 
-server side code in:
-https://www.geeksforgeeks.org/readers-writers-problem-set-1-introduction-and-readers-preference-solution/
-*/
-
-/*TODO: tirar todos os prints, colocar o recv em uma thread
-    pra liberar o terminal pra ser um painel de monitoramento do server
-    com comandos pra checar os canais, usuarios conectados, etc
-    funcionaria? 
-*/
-
-
 // C program for the Server Side
 
 // inet_addr
@@ -30,28 +17,17 @@ https://www.geeksforgeeks.org/readers-writers-problem-set-1-introduction-and-rea
 #define MAX_MSG 4096
 
 int myRead(int connfd, char *msg){
-    // loop para receber mensagens de varias partes
-    for(;;){
-        bzero(msg, MAX_MSG);
-        read(connfd, msg, MAX_MSG);
-        if(strncmp(msg, "AK", 2) == 0){
-            //termina comm
-            write(connfd, "AK", 2);
-            return 0;
-        }
-        if(msg[strlen(msg)-1] != '\n') strcat(msg, "\n");
-        printf("Mensagem do servidor: %s", msg);
-        write(connfd, "AK", 2);
-    }
-
-    // confirma que recebeu o fim de msg
-    bzero(msg, sizeof(msg));
-    read(connfd, msg, sizeof(msg));
-    if(strncmp(msg, "AK", 2) !=0){
-        printf("erro\n");
-        return 1;
-    }
-    write(connfd, "AK", 2);
+	bzero(msg, sizeof(msg));
+	// recebe a mensagem
+	if(recv(connfd, msg, sizeof(msg), 0) <= 0){
+		printf("erro no recebimento\n");
+		return -1;
+	}
+	// envia AK
+	if(send(connfd, "AK", strlen("AK"), 0) <= 0){
+		printf("erro no envio da resposta\n");
+		return -1;
+	}
 
     return 0;
 }
@@ -153,10 +129,13 @@ void* writer(void* param)
 
 	erro = myRead(newSocket, input);
 	printf("%s\n", input);
+	bzero(input, sizeof(input));
 	erro = myRead(newSocket, input);
 	printf("%s\n", input);
+	bzero(input, sizeof(input));
 	erro = myRead(newSocket, input);
 	printf("%s\n", input);
+	bzero(input, sizeof(input));
 
 	// Unlock the semaphore
 	sem_post(&y);
