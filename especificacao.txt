@@ -82,7 +82,7 @@ TODO:
 V um servidor que consiga aceitar conexoes de mais de um cliente
 V clientes que conectem ao servidor
 V limite de mensagens 4096 caracteres para os clientes, alem disso dividir a mensagem automaticamente
-• os comandos para o cliente
+V os comandos para o cliente
     V /quit -> desconecta do servidor e sai da aplicaçao
     V /ping -> servidor responde pong
     V /connect -> conecta ao servidor
