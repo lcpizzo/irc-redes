@@ -79,22 +79,22 @@ isso funciona e implemente esta funcionalidade, caso se interesse por bônus na 
 trabalho :-).
 
 TODO:
-• um servidor que consiga aceitar conexoes de mais de um cliente
-• clientes que conectem ao servidor
-• limite de mensagens 4096 caracteres para os clientes, alem disso dividir a mensagem automaticamente
+V um servidor que consiga aceitar conexoes de mais de um cliente
+V clientes que conectem ao servidor
+V limite de mensagens 4096 caracteres para os clientes, alem disso dividir a mensagem automaticamente
 • os comandos para o cliente
-    • /quit -> desconecta do servidor e sai da aplicaçao
-    • /ping -> servidor responde pong
-    • /connect -> conecta ao servidor
-    • ctrl+D -> EOF (como fazer?)
-    • handler para ignorar ctrl+C , usar tambem para ctrl+D?
+    V /quit -> desconecta do servidor e sai da aplicaçao
+    V /ping -> servidor responde pong
+    V /connect -> conecta ao servidor
+    V ctrl+D -> EOF (como fazer?)
+    V handler para ignorar ctrl+C , usar tambem para ctrl+D?
 • canais no servidor
 • criaçao de canais
 • usuarios administradores, com comandos:
-    • /kick -> kicka o usuario
-    • /mute -> muta o usuario
-    • /whois -> endereço IP do usuario
-    • /unmute -> retira o mute do usuario
+    • /kick -> kicka o usuario -> tratar no servidor
+    • /mute -> muta o usuario -> tratar no servidor
+    • /whois -> endereço IP do usuario -> tratar no servidor
+    • /unmute -> retira o mute do usuario -> tratar no servidor
 • mais comandos para usuarios normais:
     • /join -> entra no canal ou cria se nao existe
     • /nickname -> muda o nome do usuario

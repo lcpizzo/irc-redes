@@ -4,6 +4,13 @@ server side code in:
 https://www.geeksforgeeks.org/readers-writers-problem-set-1-introduction-and-readers-preference-solution/
 */
 
+/*TODO: tirar todos os prints, colocar o recv em uma thread
+    pra liberar o terminal pra ser um painel de monitoramento do server
+    com comandos pra checar os canais, usuarios conectados, etc
+    funcionaria? 
+*/
+
+
 // C program for the Server Side
 
 // inet_addr
@@ -17,6 +24,53 @@ https://www.geeksforgeeks.org/readers-writers-problem-set-1-introduction-and-rea
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <signal.h>
+#include <assert.h>
+
+#define MAX_MSG 4096
+
+int myRead(int connfd, char *msg){
+    // loop para receber mensagens de varias partes
+    for(;;){
+        bzero(msg, MAX_MSG);
+        read(connfd, msg, MAX_MSG);
+        if(strncmp(msg, "AK", 2) == 0){
+            //termina comm
+            write(connfd, "AK", 2);
+            return 0;
+        }
+        if(msg[strlen(msg)-1] != '\n') strcat(msg, "\n");
+        printf("Mensagem do servidor: %s", msg);
+        write(connfd, "AK", 2);
+    }
+
+    // confirma que recebeu o fim de msg
+    bzero(msg, sizeof(msg));
+    read(connfd, msg, sizeof(msg));
+    if(strncmp(msg, "AK", 2) !=0){
+        printf("erro\n");
+        return 1;
+    }
+    write(connfd, "AK", 2);
+
+    return 0;
+}
+
+#define MAX_MSG_LENGTH 4096
+
+// Message type
+typedef struct Message_t {
+    char user[51];
+    int req;
+    char content[MAX_MSG_LENGTH];
+} Message_t;
+
+typedef struct messageBuffer_t{
+	Message_t item[10];
+	int size;
+} messageBuffer_t;
+
+messageBuffer_t buf;
 
 // Semaphore variables
 sem_t x, y;
@@ -38,14 +92,23 @@ void* reader(void* param)
 	// Unlock the semaphore
 	sem_post(&x);
 
-	printf("\n%d reader is inside",
+	printf("%d Reader is inside\n",
 		readercount);
 
-	sleep(1);
+	char input[4096];
 
+	int newSocket = *((int*)param);
+
+	send(newSocket,
+		&buf.item[buf.size].user, sizeof(buf.item[buf.size].user), 0);
+	
+	send(newSocket,
+		&buf.item[buf.size].content, sizeof(buf.item[buf.size].content), 0);
+	
 	// Lock the semaphore
 	sem_wait(&x);
 	readercount--;
+	buf.size--;
 
 	if (readercount == 0) {
 		sem_post(&y);
@@ -54,7 +117,7 @@ void* reader(void* param)
 	// Lock the semaphore
 	sem_post(&x);
 
-	printf("\n%d Reader is leaving",
+	printf("%d Reader is leaving\n",
 		readercount + 1);
 	pthread_exit(NULL);
 }
@@ -62,19 +125,105 @@ void* reader(void* param)
 // Writer Function
 void* writer(void* param)
 {
-	printf("\nWriter is trying to enter");
+	printf("Writer is trying to enter\n");
 
 	// Lock the semaphore
 	sem_wait(&y);
 
-	printf("\nWriter has entered");
+	printf("Writer has entered\n");
+
+	int newSocket = *((int*)param);
+	int erro = 0;
+	char input[4096];
+
+	recv(newSocket,
+		&input, sizeof(input), 0);
+	printf("user: %s\n", input);
+
+	strcpy(buf.item[buf.size].user, input);
+
+	bzero(input, sizeof(input));
+
+	input[0] = '\0';
+	recv(newSocket,
+		&input, sizeof(input), 0);
+	printf("content: %s\n", input);
+	strcpy(buf.item[buf.size].content, input);
+	
+
+	erro = myRead(newSocket, input);
+	printf("%s\n", input);
+	erro = myRead(newSocket, input);
+	printf("%s\n", input);
+	erro = myRead(newSocket, input);
+	printf("%s\n", input);
 
 	// Unlock the semaphore
 	sem_post(&y);
 
-	printf("\nWriter is leaving");
+	printf("Writer is leaving\n");
+
+	buf.size++;
+	
 	pthread_exit(NULL);
 }
+
+// Handle 'ctrl + c' signal
+void interruptionHandler(int dummy) {
+    printf("\n'Ctrl + C' não é um comando válido!!\n");
+}
+
+// Auxiliary function to split strings
+char** str_split(char* a_str, const char a_delim)
+{
+    char** result    = 0;
+    size_t count     = 0;
+    char* tmp        = a_str;
+    char* last_comma = 0;
+    char delim[2];
+    delim[0] = a_delim;
+    delim[1] = 0;
+
+    /* Count how many elements will be extracted. */
+    while (*tmp)
+    {
+        if (a_delim == *tmp)
+        {
+            count++;
+            last_comma = tmp;
+        }
+        tmp++;
+    }
+
+    /* Add space for trailing token. */
+    count += last_comma < (a_str + strlen(a_str) - 1);
+
+    /* Add space for terminating null string so caller
+       knows where the list of returned strings ends. */
+    count++;
+
+    result = malloc(sizeof(char*) * count);
+
+    if (result)
+    {
+        size_t idx  = 0;
+        char* token = strtok(a_str, delim);
+
+        while (token)
+        {
+            assert(idx < count);
+            *(result + idx++) = strdup(token);
+            token = strtok(0, delim);
+        }
+        assert(idx == count - 1);
+        *(result + idx) = 0;
+    }
+
+    return result;
+}
+
+
+
 
 // Driver Code
 int main()
@@ -83,6 +232,9 @@ int main()
 	int serverSocket, newSocket;
 	struct sockaddr_in serverAddr;
 	struct sockaddr_storage serverStorage;
+
+	// set handler function
+	//signal(SIGINT, interruptionHandler);
 
 	socklen_t addr_size;
 	sem_init(&x, 0, 1);
@@ -107,8 +259,10 @@ int main()
 	else
 		printf("Error\n");
 
+    //printf("IP: %d\tPort:%d\n", serverAddr.sin_addr.s_addr, serverAddr.sin_port);
+
 	// Array for thread
-	//pthread_t tid[60];
+	pthread_t tid[60];
 
 	int i = 0;
 
@@ -120,6 +274,7 @@ int main()
 		newSocket = accept(serverSocket,
 						(struct sockaddr*)&serverStorage,
 						&addr_size);
+
 		int choice = 0;
 		recv(newSocket,
 			&choice, sizeof(choice), 0);
@@ -141,6 +296,40 @@ int main()
 
 				// Error in creating thread
 				printf("Failed to create thread\n");
+		} 
+		else if (choice == 3) {
+
+			char command[4096];
+			recv(newSocket,
+				&command, sizeof(command), 0);
+			printf("%s\n", command);
+			if (strncmp(command, "/ping", 5) == 0) {
+				bzero(command, sizeof(command));
+				strcpy(command, "pong\0");
+				send(newSocket, command, strlen(command), 0);
+				
+			}else if (strncmp(command, "/join", 5) == 0) {
+				printf("sera implementado no futuro.\n");
+				send(newSocket, "WIP", strlen("WIP")+1, 0);
+
+			}else if (strncmp(command, "/nickname", 9) == 0) {
+				printf("sera implementado no futuro.\n");
+				send(newSocket, "WIP", strlen("WIP")+1, 0);
+				// sera implementado deposi durante a parte dos canais
+			}else if (strncmp(command, "/kick", 5) == 0) {
+				printf("sera implementado no futuro.\n");
+				send(newSocket, "WIP", strlen("WIP")+1, 0);
+				// sera implementado duante a parte dos canais
+			}else if (strncmp(command, "/mute", 5) == 0) {
+				printf("sera implementado no futuro.\n");
+				send(newSocket, "WIP", strlen("WIP")+1, 0);
+				// sera implementado durante a parte dos canais
+			}else if (strncmp(command, "/unmute", 7) == 0) {
+				printf("sera implementado no futuro.\n");
+				send(newSocket, "WIP", strlen("WIP")+1, 0);
+				// sera implementado durante a parte dos canais
+			}
+
 		}
 
 		if (i >= 50) {

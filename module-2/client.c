@@ -1,13 +1,10 @@
-/*
-client side code in:
-https://www.geeksforgeeks.org/readers-writers-problem-set-1-introduction-and-readers-preference-solution/
-*/
-
 // C program for the Client Side
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <signal.h>
+
 
 // inet_addr
 #include <arpa/inet.h>
@@ -17,16 +14,133 @@ https://www.geeksforgeeks.org/readers-writers-problem-set-1-introduction-and-rea
 #include <pthread.h>
 #include <semaphore.h>
 
+#include "aux.h"
+
+// Message type
+#define MAX_MSG 4096
+#define READLINE_BUFFER 4096
+
+typedef struct Message_t {
+    char user[51];
+    int req;
+    char content[MAX_MSG];
+}Message_t;
+
+#define CONTINUE 100
+#define QUIT 200
+
+int myWrite(int connfd, char *msg){
+    char temp[MAX_MSG + 1];
+
+    int tam = strlen(msg)+1;
+    // loop para dividir a msg em varias partes
+    for(int i=0; i < tam/MAX_MSG; i++){
+        bzero(temp, MAX_MSG + 1);
+        strncpy(temp, msg, MAX_MSG+1);
+        write(connfd, temp, MAX_MSG + 1);
+        msg += MAX_MSG;
+        write(connfd, temp, MAX_MSG);
+        bzero(temp, sizeof(temp));
+        read(connfd, temp, sizeof(temp));
+        if(strncmp(temp, "AK", 2) != 0){
+            printf("erro\n");
+            break;
+        }
+    }
+    write(connfd, msg, tam%MAX_MSG);
+
+    read(connfd, temp, sizeof(temp));
+    if(strncmp(temp, "AK", 2)!= 0){
+        printf("erro\n");
+        return 1;
+    }
+
+    // envia a ultima confirmaçao indicando que acabou a mensagem
+    write(connfd, "AK", 2);
+
+    bzero(temp, sizeof(temp));
+    read(connfd, temp, sizeof(temp));
+    if(strncmp(temp, "AK", 2) != 0){
+        printf("erro\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+
 // Function to send data to
 // server socket.
-void* clienthread(void* args)
+/*
+void* clienthread_read(void *param)
 {
+	//Message_t msg = *((Message_t*) param[0]);
+	//int network_socket = *((int*) param[1]);
+	
+	// receive data from the server
+	char input[4096];
+	send(network_socket, &msg.req,
+		sizeof(msg.req), 0);
 
-	int client_request = *((int*)args);
-	int network_socket;
+	recv(network_socket, &input, sizeof(input), 0);
+	printf("user: %s\n", input);
+	
+	bzero(input, sizeof(input));
 
+	recv(network_socket, &input, sizeof(input), 0);
+	printf("content: %s\n", input);
+
+	pthread_exit(NULL);
+
+	return 0;
+}
+
+// Function to send data to
+// server socket.
+void* clienthread_write(void *param)
+{
+	//Message_t msg = *((Message_t*) param[0]);
+	//int network_socket = *((int*)param[1]);
+
+	// Send data to the socket
+	send(network_socket, &msg.req,
+		sizeof(msg.req), 0);
+
+	//int erro = myWrite(networkSocket,);
+	
+	pthread_exit(NULL);
+
+	return 0;
+}*/
+
+char *readline(FILE *stream) {
+    char *string = (char *)calloc(MAX_MSG + 1, sizeof(char));
+    int pos = 0;
+    
+    do{
+        if (pos % MAX_MSG == 0) {
+            string = (char *)realloc(string, (pos / MAX_MSG + 1) * MAX_MSG);
+        }
+        string[pos] = (char)fgetc(stream);
+    }while(string[pos++] != '\n' && !feof(stream));
+    string[strlen(string)-1] = '\n';
+
+    return string;
+}
+
+int quit_server(int conn, int network_socket){
+	if (conn){
+		conn = 0;
+		close(network_socket);
+		printf("Connection Closed.\n");
+	}
+	
+	return QUIT;
+}
+
+int conct(int *network_socket){
 	// Create a stream socket
-	network_socket = socket(AF_INET,
+	*network_socket = socket(AF_INET,
 							SOCK_STREAM, 0);
 
 	// Initialise port number and address
@@ -36,7 +150,7 @@ void* clienthread(void* args)
 	server_address.sin_port = htons(8989);
 
 	// Initiate a socket connection
-	int connection_status = connect(network_socket,
+	int connection_status = connect(*network_socket,
 									(struct sockaddr*)&server_address,
 									sizeof(server_address));
 
@@ -47,58 +161,109 @@ void* clienthread(void* args)
 	}
 
 	printf("Connection established\n");
+	return 1;
+}
 
-	// Send data to the socket
-	send(network_socket, &client_request,
-		sizeof(client_request), 0);
+// Handle 'ctrl + c' signal
+void interruptionHandler(int dummy) {
+    printf("\n'Ctrl + C' não é um comando válido!!\n");
+}
 
-	// Close the connection
-	close(network_socket);
+void clienthread_send(void** params){
+	int network_socket = *((int*)params[0]);
+	char user[51];
+	char input[4096];
+	strcpy(user, ((char*)params[1]));
+	strcpy(input, ((char*)params[2]));
+	int erro = 0;
+	
+	// Envia a mensagem em 3 partes -> a flag de identificaçao 
+	//		da msg, o usuario que enviou a mensagem e o conteudo dela
+	erro = myWrite(network_socket, "2");
+	erro = myWrite(network_socket, user);
+	erro = myWrite(network_socket, input);
+
+	
 	pthread_exit(NULL);
-
-	return 0;
 }
 
 // Driver Code
-int main()
-{
-	printf("1. Read\n");
-	printf("2. Write\n");
-
-	// Input
-	int choice;
-	scanf("%d", &choice);
+int main() {	
+	// set handler function
+	//signal(SIGINT, interruptionHandler);
+	
 	pthread_t tid;
+    int cmd = CONTINUE, conn = 0, network_socket, user_set = 0, exit = 0, erro = 0;
+	char user[51] = "", input[4096];
 
-	// Create connection
-	// depending on the input
-	switch (choice) {
-	case 1: {
-		int client_request = 1;
+	void* params[5];
 
-		// Create thread
-		pthread_create(&tid, NULL,
-					clienthread,
-					&client_request);
-		sleep(20);
-		break;
-	}
-	case 2: {
-		int client_request = 2;
+    while(cmd != QUIT) {
+        strcpy(input, readline(stdin));
 
-		// Create thread
-		pthread_create(&tid, NULL,
-					clienthread,
-					&client_request);
-		sleep(20);
-		break;
-	}
-	default:
-		printf("Invalid Input\n");
-		break;
-	}
+		if (feof(stdin)){
+			cmd = quit_server(conn, network_socket);
+			continue;
+		}
+    
 
+        // input that starts with / is likely a command
+        if (input[0] == '/') {
+			if(strncmp(input, "/quit", 5) == 0){
+				// Closes the connection
+				cmd = quit_server(conn, network_socket);
+			} else if (strncmp(input, "/ping", 5) == 0){
+				// Envia ping para o servidor 
+				// TODO botar em uma funcao
+				if(conn){
+					int req = 3;
+					send(network_socket, &req, sizeof(req), 0);
+					send(network_socket, "/ping", strlen("/ping")+1, 0);
+					recv(network_socket, &input, sizeof(input), 0);
+					printf("%s\n", input);
+				} else {
+					printf("Voce deve estar conectado ao servidor para enviar mensagens. Use o comando /connect.\n");
+				}
+			} else if (strncmp(input, "/connect", 8) == 0){
+				// Conecta ao server                    
+				conn = conct(&network_socket);
+			} else if (strncmp(input, "/nickname", 9) == 0){
+				// Muda o nick
+				strncpy(user, (input+10), strlen(input) - 11);
+				user_set = 1;
+			} else {
+				//Comando nao reconhecido
+				printf("Comando nao reconhecido.\n");
+				int req = 3;
+				send(network_socket, &req, sizeof(req), 0);
+				bzero(input, sizeof(input));
+				recv(network_socket, &input, sizeof(input), 0);
+				printf("%s\n", input);
+			}
+        } else {
+			// texto eh uma mensagem
+			if(!conn){
+				printf("Voce deve estar conectado ao servidor para enviar mensagens. Use o comando /connect.\n");
+				continue;
+			}
+			
+			if(!user_set){
+				printf("Voce deve definir um nome de usuario antes de poder enviar mensagens. Use o comando /nickname [nome] para mudar seu nome.\n");
+				continue;
+			}
+			printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>: %s\n", input);
+			params[0] = (void*)(&network_socket);
+			params[1] = (void*)(&user);
+			params[2] = (void*)(&input);
+
+			pthread_create(&tid, NULL,
+				clienthread_send,
+				&params);
+			bzero(input, sizeof(input));
+		}
+    }
 	// Suspend execution of
 	// calling thread
 	pthread_join(tid, NULL);
 }
+

@@ -1,4 +1,4 @@
-CFLAGS = -g -Wall -pthread
+CFLAGS = -g -pthread
 objects = client.o server.o
 CC = gcc
 dbg_flags = 
