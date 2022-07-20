@@ -10,25 +10,26 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <semaphore.h>
+#include <stdbool.h>
 
 // Message type
 #define MAX_MSG 4096
 
-int quit = 0, t_run = 0, ak_quit = 0;
+bool quit = false, t_run = false, ak_quit = false;
 
 // thread de recebimento de mensagens do servidor
 void* clientThread(void *sockID){
 	int user_socket = *((int*) sockID);
 	int cont = 0;
-	t_run = 1;
+	t_run = true;
 
 	while(!quit) {
 		char data[MAX_MSG];
 		int read = recv(user_socket, data, MAX_MSG, 0);
 		data[read] = '\0';
 		if(strncmp(data, "AK/QUIT", 7) == 0){
-			quit = 1;
-			ak_quit = 1;	
+			quit = true;
+			ak_quit = true;	
 			break;
 		}
 		printf("%s\n", data);
@@ -55,7 +56,8 @@ int main() {
 	serverAddr.sin_port = htons(8989);
 	serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-	int conn = 0, user_set = 0, tries = 0;
+	int tries = 0;
+	bool conn = false, user_set = false;
 	char input[MAX_MSG];
 
 	// cria uma thread para receber respostas do servidor
@@ -77,7 +79,7 @@ int main() {
 			if(connect(user_socket, (struct sockaddr*) &serverAddr, 
 									sizeof(serverAddr)) == 0){
 				printf("Conection established...\n");
-				conn = 1;
+				conn = true;
 				pthread_create(&tid, NULL, clientThread, (void *) &user_socket);
 			}
 			else
@@ -87,10 +89,10 @@ int main() {
 
 		// fecha a conexao
 		else if (strncmp(input, "/quit", 5) == 0){
-			quit = 1;
+			quit = true;
 			if(conn){
 				send(user_socket, "/quit", 5, 0);
-				conn = 0;
+				conn = false;
 				while(!ak_quit);
 				close(user_socket);
 				printf("Connection closed...\n");
@@ -105,7 +107,7 @@ int main() {
 			}
 			printf("New Username: %s\n", (input+10));
 			send(user_socket, (input+10), strlen(input), 0);
-			user_set = 1;
+			user_set = true;
 		}
 		// envia a mensagem -> deve tentar 5 vezes no maximo antes de desistir
 		else if (input[0] != '\0') {
