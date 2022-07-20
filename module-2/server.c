@@ -12,7 +12,9 @@
 #include <netinet/in.h>
 
 #define MAX_MSG 4096
+#define MAX_USERS 1024
 
+// O usuario vai estar "logado" em apenas um canal por vez, entao
 typedef struct user {
 	struct sockaddr_in socketAddr;
 	char name[51];
@@ -22,19 +24,116 @@ typedef struct user {
 	int connected;
 } user;
 
+typedef struct channel {
+	/*
+	lista de usuarios conectados no canal
+	usuario admin
+	nome
+	n_membros
+	TODO: pensar em como implementar o mute/unmute
+	*/
+} channel;
+
+// TODO criar uma funçao de busca de usuarios que retorna o socket dele
+//			recebendo como input o canal(que contem uma lista de todos os usuarios conectados)
+//			e o nome de usuario dele
+
+// TODO: crir uma maneira de checar se o user e admin para checar se o
+//		comando pedido e valido
+
+// TODO: criar uma funçao de falha, cmd nao autorizado apenas o ademir pode
+
 // TODO: modularizar o codigo
-// TODO: resolver o problema de Broken Pipe que acontece quando um dos clientes
-//		desconecta do servidor -> acho que e pq o servidor tenta enviar a mensagem
-// 		que aquele cliente saiu para ele mesmo, e como a conexao foi fechada
-//		um erro e gerado
+
+// TODO: criar uma funcao que busca se existe o canal desejado
+//		------------------------------
+//		o resto da logica da criaçao de canais / adiçao do usuario ao canal
+//		fica para outras partes do codigo
+//		------------------------------	
+//			-> talvez simplificar a funçao de busca de usuario para poder usar
+//				essa mesma funçao para as duas funcionalidades
+//				Ex. a funçao recebe uma lista e uma chave e retorna o membro encontrado
+//				ou -1 caso negativo
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
 // Array for thread
-struct user userList[1024];
 int user_count = 0;
-pthread_t thread[1024];
+pthread_t thread[MAX_USERS];
+
+// usar lista linkada? facilitaria a remoçao de usuarios? atualmente com
+//		lista estou usando o attr connected para desconectar logicamente
+//		mas nao estou apagando o registro do usuario da memoria. 
+struct user userList[MAX_USERS];
+
+enum CMD {
+	NONE = 100,
+	PING,
+	NICKNAME,
+	QUIT,
+	MUTE,
+	UNMUTE,
+	WHO,
+	KICK,
+	JOIN
+};
+
+int client_ping(user *client){
+	return send(client->sockID, "pong", strlen("pong"), 0);
+}
+
+int change_nickname(user *client, char *new_nick){
+	strncpy(client->name, new_nick, strlen(new_nick));
+
+	return 0;
+}
+
+// TODO: mudar essa func para enviar a msg apenas para os users no
+//		mesmo canal
+// TODO: antes de chamar essa funçao checar se o usuario esta mutado
+int send_msg(char *msg){
+	for(int i=0; i<user_count; i++) {
+		if(userList[i].connected)
+			// TODO: criar um while para checar se a mensagem foi enviada
+			send(userList[i].sockID, msg, MAX_MSG, 0);
+	}
+	return 0;
+}
+
+// Funçao que cria o canal
+void create_channel(user *client, char *channel_name){
+
+}
+
+// Funçao que adiciona o usuario ao canal
+void join_channel(user *client, char *channel_name){
+
+}
+
+int client_cmd(char *input){
+	if(strncmp(input, "/ping", strlen("/ping") == 0)){
+		return PING;
+	} else if (strncmp(input, "/quit", strlen("/quit") == 0)){
+		return QUIT;
+	} else if (strncmp(input, "/nickname", strlen("/nickname") == 0)){
+		return NICKNAME;
+	} else if (strncmp(input, "/join", strlen("/join") == 0)){
+		return JOIN;
+	} else if (strncmp(input, "/kick", strlen("kick") == 0)){
+		return KICK;
+	} else if (strncmp(input, "/mute", strlen("/mute") == 0)){
+		return MUTE;
+	} else if (strncmp(input, "/unmute", strlen("/unmute") == 0)){
+		return UNMUTE;
+	} else if (strncmp(input, "/whois", strlen("/whois") == 0)){
+		return WHO;
+	}
+
+	// no momento se a mensagem enviada e diferente de alguma dessas
+	//		a mensagem e enviada a todos
+	return NONE;
+} 
 
 // Thread de comunicaçao com o cliente
 void* clientThread(void *Client){
@@ -57,20 +156,25 @@ void* clientThread(void *Client){
 		read = recv(client->sockID, data, MAX_MSG, 0);
 		data[read] = '\0';
 
+		//int cmd = client_cmd(data);
+
 		// comandos especiais
 		if(strncmp(data, "/quit", 5) == 0) {
+			// TODO: checar se o usuario eh admin do canal atual
+			//		e tratar disso (deletar o canal ou passar admin para outro
+			//		se for o segundo caso: qual o criterio?)
+			//	--------------------
+			// 		usar essa logica tambem para o join, se o admin de um canal
+			//			for para outro, o q acontece com o canal que ele criou?
 			quit = 1;
 			client->connected = 0;
-			userList[client->index].connected = 0;
+
 			send(client->sockID, "AK/QUIT", 7, 0);
 			printf("%s saiu...\n", client->name);
-			for(int i=0; i<user_count; i++) {
-				strcpy(msg, client->name);
-				strcat(msg, " saiu\n");
-				if(userList[i].connected)
-					// TODO: criar um while para checar se a mensagem foi enviada
-					send(userList[i].sockID, msg, MAX_MSG, 0);
-			}
+
+			strcpy(msg, client->name);
+			strcat(msg, " saiu\n");
+			send_msg(msg);
 		} 
 		else if (strncmp(data, "/ping", 5) == 0) {
 			send(client->sockID, "pong", 4, 0);
@@ -82,14 +186,10 @@ void* clientThread(void *Client){
 
 		// mensagem normal
 		else {
-			for(int i=0; i<user_count; i++) {
-				strcpy(msg, client->name);
-				strcat(msg, ": ");
-				strcat(msg, data);
-				// TODO: checar se o usuario ainda esta conectado antes de enviar a mensagem
-				if(userList[i].connected)
-					send(userList[i].sockID, msg, MAX_MSG, 0);
-			}
+			strcpy(msg, client->name);
+			strcat(msg, ": ");
+			strcat(msg, data);
+			send_msg(msg);
 		}
 	}
 

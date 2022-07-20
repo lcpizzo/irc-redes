@@ -83,11 +83,7 @@ int main() {
 			else
 				printf("Conection error...\n");
 
-		} 
-		// envia ping ao servidor
-		else if (strncmp(input, "/ping", 5) == 0){
-			send(user_socket, "/ping", 5, 0);
-		} 
+		}
 
 		// fecha a conexao
 		else if (strncmp(input, "/quit", 5) == 0){
