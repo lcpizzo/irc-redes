@@ -14,16 +14,23 @@
 // Message type
 #define MAX_MSG 4096
 
-int quit = 0;
+int quit = 0, t_run = 0, ak_quit = 0;
 
 // thread de recebimento de mensagens do servidor
 void* clientThread(void *sockID){
 	int user_socket = *((int*) sockID);
+	int cont = 0;
+	t_run = 1;
 
 	while(!quit) {
 		char data[MAX_MSG];
 		int read = recv(user_socket, data, MAX_MSG, 0);
 		data[read] = '\0';
+		if(strncmp(data, "AK/QUIT", 7) == 0){
+			quit = 1;
+			ak_quit = 1;	
+			break;
+		}
 		printf("%s\n", data);
 	}
 
@@ -84,10 +91,11 @@ int main() {
 
 		// fecha a conexao
 		else if (strncmp(input, "/quit", 5) == 0){
-			send(user_socket, "/quit", 5, 0);
 			quit = 1;
 			if(conn){
+				send(user_socket, "/quit", 5, 0);
 				conn = 0;
+				while(!ak_quit);
 				close(user_socket);
 				printf("Connection closed...\n");
 			}
@@ -99,7 +107,7 @@ int main() {
 				printf("Voce precisa estar conectado para definir um nome de usuario.\n");
 				continue;
 			}
-			printf("New User Name: %s\n", (input+10));
+			printf("New Username: %s\n", (input+10));
 			send(user_socket, (input+10), strlen(input), 0);
 			user_set = 1;
 		}
@@ -125,9 +133,10 @@ int main() {
 			}
 		}
 	}
-	printf("cheguei aqui\n");
 	// Suspend execution of
 	// calling thread
-	pthread_join(tid, NULL);
+	if(t_run)
+		pthread_join(tid, NULL);
+	pthread_exit(NULL);
 }
 

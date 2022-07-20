@@ -19,8 +19,7 @@ typedef struct user {
 	int sockID;
 	int len;
 	int index;
-	// TODO: adicionar uma variavel para guardar se o usuario ainda esta
-	//			conectado, caso contrario pular ele na hora de enviar mensagens
+	int connected;
 } user;
 
 // TODO: modularizar o codigo
@@ -40,6 +39,7 @@ pthread_t thread[1024];
 // Thread de comunicaçao com o cliente
 void* clientThread(void *Client){
 	user *client = (user *)Client;
+	int quit = 0;
 
 	char data[MAX_MSG];
 	char msg[MAX_MSG];
@@ -49,7 +49,7 @@ void* clientThread(void *Client){
 	strncpy(client->name, data, read);
 
 	// loop de comunicaçao do cliente
-	while(1) {
+	while(!quit) {
 		bzero(msg, MAX_MSG);
 
 		// Recebe a mensagem do usuario
@@ -59,14 +59,18 @@ void* clientThread(void *Client){
 
 		// comandos especiais
 		if(strncmp(data, "/quit", 5) == 0) {
+			quit = 1;
+			client->connected = 0;
+			userList[client->index].connected = 0;
+			send(client->sockID, "AK/QUIT", 7, 0);
 			printf("%s saiu...\n", client->name);
 			for(int i=0; i<user_count; i++) {
 				strcpy(msg, client->name);
-				strcat(msg, " saiu");
-				// TODO: checar se o usuario ainda esta conectado antes de enviar a mensagem
-				send(userList[i].sockID, msg, MAX_MSG, 0);
+				strcat(msg, " saiu\n");
+				if(userList[i].connected)
+					// TODO: criar um while para checar se a mensagem foi enviada
+					send(userList[i].sockID, msg, MAX_MSG, 0);
 			}
-
 		} 
 		else if (strncmp(data, "/ping", 5) == 0) {
 			send(client->sockID, "pong", 4, 0);
@@ -83,7 +87,8 @@ void* clientThread(void *Client){
 				strcat(msg, ": ");
 				strcat(msg, data);
 				// TODO: checar se o usuario ainda esta conectado antes de enviar a mensagem
-				send(userList[i].sockID, msg, MAX_MSG, 0);
+				if(userList[i].connected)
+					send(userList[i].sockID, msg, MAX_MSG, 0);
 			}
 		}
 	}
@@ -132,6 +137,7 @@ int main()
 			(struct sockaddr*)&userList[user_count].socketAddr,
 			&userList[user_count].len);
 		userList[user_count].index = user_count;
+		userList[user_count].connected = 1;
 
 		if (pthread_create(&thread[user_count], NULL,
 			clientThread, (void *) &userList[user_count]) != 0)
