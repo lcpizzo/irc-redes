@@ -1,7 +1,8 @@
 CFLAGS = -g -pthread
 objects = client.o server.o
 CC = gcc
-dbg_flags = 
+dbg_flags =
+DEPS = chatFunctions.h 
 
 server: server.o perm
 	./server.o
@@ -11,7 +12,7 @@ client: client.o perm
 
 all: $(objects)
 
-%.o: %.c
+%.o: %.c $(DEPS)
 	$(CC) $(CFLAGS) $< -o $@
 
 perm:
