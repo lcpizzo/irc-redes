@@ -30,5 +30,14 @@ typedef struct channel {
 int client_ping(user *client);
 int change_nickname(user *client, char *new_nick);
 int join_channel(channel *chnl, user *client);
+int send_msg(user **userList, char *msg, int user_count);
+channel *search_channel(channel **channelList, char *channelName);
+user* search_user(char *clientName, channel *chnl);
+int create_channel(channel **channelList, char* channelName, user *admin, int channel_count);
+int mute_user(char *clientName, channel *chnl);
+int unmute_user(char *clientName, channel *chnl);
+int client_cmd(channel **channelList, user **userList, char *input, user *client, int channel_count, int user_count);
+void* clientThread(void *Client, user **userList, int user_count);
+void interruptionHandler(int dummy);
 
 #endif
