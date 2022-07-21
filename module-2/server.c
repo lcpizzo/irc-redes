@@ -97,7 +97,9 @@ int main(){
 		userList[user_count]->index = user_count;
 		userList[user_count]->connected = 1;
 
-		if (pthread_create(&thread[user_count], NULL,
+		if (
+			// TODO: resolver o problema do userList dentro do clientThread
+			pthread_create(&thread[user_count], NULL,
 			clientThread, (void *) &userList[user_count]) != 0)
 			// Error in creating thread
 			printf("Failed to create thread\n");
