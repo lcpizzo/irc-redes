@@ -88,16 +88,16 @@ V os comandos para o cliente
     V /connect -> conecta ao servidor
     V ctrl+D -> EOF (como fazer?)
     V handler para ignorar ctrl+C , usar tambem para ctrl+D?
-• canais no servidor
-• criaçao de canais
-• usuarios administradores, com comandos:
-    • /kick -> kicka o usuario -> tratar no servidor
-    • /mute -> muta o usuario -> tratar no servidor
-    • /whois -> endereço IP do usuario -> tratar no servidor
-    • /unmute -> retira o mute do usuario -> tratar no servidor
-• mais comandos para usuarios normais:
-    • /join -> entra no canal ou cria se nao existe
-    • /nickname -> muda o nome do usuario
+V canais no servidor
+V criaçao de canais
+V usuarios administradores, com comandos:
+    V /kick -> kicka o usuario -> tratar no servidor
+    V /mute -> muta o usuario -> tratar no servidor
+    V /whois -> endereço IP do usuario -> tratar no servidor
+    V /unmute -> retira o mute do usuario -> tratar no servidor
+V mais comandos para usuarios normais:
+    V /join -> entra no canal ou cria se nao existe
+    V /nickname -> muda o nome do usuario
 
 
 Referencia

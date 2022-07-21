@@ -20,43 +20,46 @@
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
-
-// usar lista linkada? facilitaria a remoçao de usuarios? atualmente com
-//		lista estou usando o attr connected para desconectar logicamente
-//		mas nao estou apagando o registro do usuario da memoria. 
+int user_count = 0;
+int channel_count = 0;
 
 
-/*
-TODO: pensar em como implementar o mute/unmute -> pensado/aceito criticas
-		preciso do attr admin aqui? tem em 2 lugares, tanto no usuario
-		quanto no canal, um dos 2 eh desnecessario.
-	-----------------
-	Pensando melhor acho que so no canal e melhor pois facilita a checagem se o user
-	eh admin. Na implementaçao atual essa checagem eh demorada
-*/
 
-// TODO: criar uma funçao de busca de usuarios que retorna o socket dele
-//			recebendo como input o canal(que contem uma lista de todos os usuarios conectados)
-//			e o nome de usuario dele
+// Thread de comunicaçao com o cliente
+void* clientThread(void *param){
+	struct thread_args *my_args = (thread_args *)param;
 
-// TODO: criar uma funçao que recebe o nome de um usuario e o canal e 
-//	retorna um ponteiro para ele caso ele pertença ao canal, NULL caso
-//		contrario
+	channel** channelList = my_args->channelList;
+	user** userList = my_args->userList;
+	user* client = my_args->client;
 
-// TODO: criar uma funçao de falha, cmd nao autorizado apenas o ademir pode
+	bool quit = false;
 
-// TODO: modularizar o codigo
+	char data[MAX_MSG];
+	// Recebe o nome de usuario desse cliente
+	//int read = recv(client->sockID, data, MAX_MSG, 0);
+	//strncpy(client->name, data, read);
 
+	int read;
+
+	// loop de comunicaçao do cliente
+	while(!quit) {
+		// Recebe a mensagem do usuario
+		bzero(data, MAX_MSG);
+		read = recv(client->sockID, data, MAX_MSG, 0);
+		data[read] = '\0';
+		printf("aqui tem %s\n", data);
+		int erro = client_cmd(*channelList, *userList, data, client, channel_count, user_count, &quit);
+		
+		printf("erro %d\n", erro);
+	}
+
+	pthread_exit(NULL);
+}
 
 
 // Driver Code
 int main(){
-	channel **channelList = (channel **)malloc(MAX_CHANNELS * sizeof(channel *));
-	for(int i = 0; i < MAX_CHANNELS; i++) (channel *)malloc(sizeof(channel));
-
-	user **userList = (user **)malloc(MAX_USERS * sizeof(user *));
-	for(int i = 0; i < MAX_USERS; i++) (user *)malloc(sizeof(user));
-
 	// Array for thread
 	int user_count = 0;
 	int channel_count = 0;
@@ -64,6 +67,12 @@ int main(){
 
 	// set handler function
 	//signal(SIGINT, interruptionHandler);
+
+	channel **channelList = (channel **)calloc(MAX_CHANNELS, sizeof(channel *));
+	for(int i = 0; i < MAX_CHANNELS; i++) channelList[i] = (channel *)calloc(1, sizeof(channel));
+
+	user **userList = (user **)calloc(MAX_USERS, sizeof(user *));
+	for(int i = 0; i < MAX_USERS; i++) userList[i] = (user *)calloc(1, sizeof(user));
 
 	// Initialize variables
 	int serverSocket;
@@ -95,21 +104,24 @@ int main(){
 			(struct sockaddr*)&userList[user_count]->socketAddr,
 			&userList[user_count]->len);
 		userList[user_count]->index = user_count;
-		userList[user_count]->connected = 1;
+		//userList[user_count]->connected = 1;
 
-		if (
-			// TODO: resolver o problema do userList dentro do clientThread
-			pthread_create(&thread[user_count], NULL,
-			clientThread, (void *) &userList[user_count]) != 0)
+		struct thread_args param;
+		param.userList = userList;
+		param.channelList = channelList;
+		param.client = userList[user_count];
+
+		if (pthread_create(&thread[user_count], NULL,
+		clientThread, &param) != 0)
 			// Error in creating thread
 			printf("Failed to create thread\n");
-		
 
 		user_count++;
 	}
 
 	for (int i=0; i<user_count; i++)
 		pthread_join(thread[i], NULL);
+
 
 	for(int i = 0; i < MAX_CHANNELS; i++) free(channelList[i]);
 	free(channelList);

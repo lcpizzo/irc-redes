@@ -38,11 +38,6 @@ void* clientThread(void *sockID){
 	pthread_exit(NULL);
 }
 
-// Handle 'ctrl + c' signal
-void interruptionHandler(int dummy) {
-    printf("\n'Ctrl + C' não é um comando válido!!\n");
-}
-
 // Driver Code
 int main() {	
 	// set handler function
@@ -106,7 +101,7 @@ int main() {
 				continue;
 			}
 			printf("New Username: %s\n", (input+10));
-			send(user_socket, (input+10), strlen(input), 0);
+			send(user_socket, input, strlen(input), 0);
 			user_set = true;
 		}
 		// envia a mensagem -> deve tentar 5 vezes no maximo antes de desistir
