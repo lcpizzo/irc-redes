@@ -11,25 +11,11 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <stdbool.h>
+#include "chatFunctions.h"
 
 #define MAX_MSG 4096
 #define MAX_USERS 1024
 #define MAX_CHANNELS 10
-
-// O usuario vai estar "logado" em apenas um canal por vez, entao
-//  podemos adicionar dois attr a mais, um bool admin e um bool mute,
-// 	para checar se o usuario eh um admin e se esta mutado 
-typedef struct user {
-	struct sockaddr_in socketAddr;
-	char name[51];
-	int sockID;
-	int len;
-	int index;
-	bool connected;
-	bool mute;
-	bool admin;
-	channel *conn_channel;
-} user;
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
@@ -42,8 +28,8 @@ pthread_t thread[MAX_USERS];
 // usar lista linkada? facilitaria a remoçao de usuarios? atualmente com
 //		lista estou usando o attr connected para desconectar logicamente
 //		mas nao estou apagando o registro do usuario da memoria. 
-struct user userList[MAX_USERS];
-struct channel channelList[MAX_CHANNELS];
+user userList[MAX_USERS];
+channel channelList[MAX_CHANNELS];
 
 /*
 TODO: pensar em como implementar o mute/unmute -> pensado/aceito criticas
@@ -53,12 +39,6 @@ TODO: pensar em como implementar o mute/unmute -> pensado/aceito criticas
 	Pensando melhor acho que so no canal e melhor pois facilita a checagem se o user
 	eh admin. Na implementaçao atual essa checagem eh demorada
 */
-typedef struct channel {
-	user* channel_users[MAX_CHANNELS];
-	user* admin;
-	int n_members;
-	char *channelName;
-} channel;
 
 // TODO: criar uma funçao de busca de usuarios que retorna o socket dele
 //			recebendo como input o canal(que contem uma lista de todos os usuarios conectados)
@@ -71,16 +51,6 @@ typedef struct channel {
 // TODO: criar uma funçao de falha, cmd nao autorizado apenas o ademir pode
 
 // TODO: modularizar o codigo
-
-int client_ping(user *client){
-	return send(client->sockID, "pong", strlen("pong"), 0);
-}
-
-int change_nickname(user *client, char *new_nick){
-	strncpy(client->name, new_nick, strlen(new_nick));
-
-	return 0;
-}
 
 // TODO: mudar essa func para enviar a msg apenas para os users no
 //		mesmo canal
@@ -104,18 +74,12 @@ int send_msg(char *msg){
 //				essa mesma funçao para as duas funcionalidades
 //				Ex. a funçao recebe uma lista e uma chave e retorna o membro encontrado
 //				ou -1 caso negativo
-channel search_channel(channelList *chnlList, char *channelName){
-	return chnlList[0];
+channel search_channel(char *channelName){
+	return channelList[0];
 }
 
-// Funçao que adiciona o usuario ao canal
-int join_channel(channel *chnl, user *client){
-	if(chnl->channel_users == MAX_CHANNELS)
-		return -1;
-
-	chnl->channel_users[chnl->n_members++] = *client;
-
-	return 0;
+user search_user(char *clientName, channel *chnl){
+	return chnl->channel_users[0];
 }
 
 // Funçao que cria canais
@@ -141,22 +105,22 @@ int mute_user(char *clientName, channel *chnl) {
 	if(client == NULL)
 		return -1; 
 	
-	if(client.mute)
+	if(client->mute)
 		return 0;
 	
-	client.mute = true;
+	client->mute = true;
 	return 0;
 }
 
-void unmute_user(char *clientName, channel *chnl) {
+int unmute_user(char *clientName, channel *chnl) {
 	user *client = search_user(clientName, chnl);
 	if(client == NULL)
 		return -1; 
 	
-	if(!client.mute)
+	if(!client->mute)
 		return 0;
 	
-	client.mute = false;
+	client->mute = false;
 	return 0;
 }
 
@@ -166,28 +130,28 @@ int client_cmd(char *input, user *client){
 		return client_ping(client);
 
 	} else if (strncmp(input, "/quit", strlen("/quit") == 0)){
-		return QUIT;
+		//return QUIT;
 
 	} else if (strncmp(input, "/nickname", strlen("/nickname") == 0)){
 		return change_nickname(client, (input+strlen("/nickname ")));
 	} else if (strncmp(input, "/join", strlen("/join") == 0)){
-		channel chnl = search_channel((input+strlen("/join ")));
+		channel *chnl = search_channel((input+strlen("/join ")));
 		if(chnl == NULL)
 			return create_channel((input+strlen("/join ")), client);
 		else
 			return join_channel(chnl, client);
 
 	} else if (strncmp(input, "/kick", strlen("kick") == 0)){
-		return KICK;
+		//return KICK;
 		
 	} else if (strncmp(input, "/mute", strlen("/mute") == 0)){
-		return mute_user(input+strlen("/mute "));
+		return mute_user(input+strlen("/mute "), client->conn_channel);
 
 	} else if (strncmp(input, "/unmute", strlen("/unmute") == 0)){
-		return mute_user(input+strlen("/unmute "));
+		return unmute_user(input+strlen("/unmute "), client->conn_channel);
 
 	} else if (strncmp(input, "/whois", strlen("/whois") == 0)){
-		return WHO;
+		//return WHO;
 	}
 
 	// no momento se a mensagem enviada e diferente de alguma dessas
