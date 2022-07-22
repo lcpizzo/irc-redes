@@ -63,7 +63,8 @@ int join_channel(channel *chnl, user *client){
 	if(chnl->n_members == MAX_CHANNELS)
 		return -1;
 
-	chnl->channel_users[chnl->n_members++] = client;
+	chnl->channel_users[chnl->n_members] = client;
+	chnl->n_members++;
 	client->conn_channel = chnl;
 
 	return 0;
@@ -72,20 +73,27 @@ int join_channel(channel *chnl, user *client){
 int send_msg(user *client, char *msg){
 	int tries = 0;
 
+	char temp[128];
+	strcpy(temp, client->name);
+	strcat(temp, ": ");
+	strcat(temp, msg);
+
 	for(int i=0; i < client->conn_channel->n_members; i++) {
-		while(tries++ <= 5)
-			send(client->conn_channel->channel_users[i]->sockID, msg, MAX_MSG, 0);
+		while(send(client->conn_channel->channel_users[i]->sockID, temp, MAX_MSG, 0) == -1 && tries++ <= 5);
+
+		if(tries == 5)
+			return -1;
 	}
 
 	return 0;
 }
 
-int whois(user *client, char *input){
+struct sockaddr_in whois(user *client, char *input){
 	char *subj = (input+strlen("/whois "));
 
 	for (int i=0; i<client->conn_channel->n_members; i++){
 		if(strcmp(client->conn_channel->channel_users[i]->name, subj) == 0){
-			return client->conn_channel->channel_users[i]->sockID;
+			return client->conn_channel->channel_users[i]->socketAddr;
 		}
 	}
 
@@ -117,14 +125,14 @@ int search_user(char *clientName, channel *chnl){
 }
 
 // Funçao que cria canais
-int create_channel(char* channelName, user *admin, int channel_count){
+int create_channel(char* channelName, user *admin){
 	if(channel_count == MAX_CHANNELS)
 		return -1;
 
 	channelList[channel_count].admin = admin;
 	strcpy(channelList[channel_count].channelName, channelName);
-	channelList[channel_count].n_members = 1;
 	channelList[channel_count].channel_users[channelList[channel_count].n_members] = admin;
+	channelList[channel_count].n_members = 1;
 	admin->admin = true;
 	admin->conn_channel = &channelList[channel_count];
 
@@ -159,12 +167,35 @@ int unmute_user(char *clientName, channel *chnl) {
 	return 0;
 }
 
-int remove_user(char *userName){
-	//user *client = userList();
+int remove_user(user* client){
+	int client_index = search_user(client->name, client->conn_channel);
+
+	for(;client_index<client->conn_channel->n_members-1; client_index++){
+		client->conn_channel->channel_users[client_index] = client->conn_channel->channel_users[client_index+1];
+	}
+
 	return 0;
 }
 
 int kick_user(char* userName, channel* chnl){
+	int client_index = search_user(userName, chnl);
+
+	if(client_index == -1)
+		return -1;
+
+	send(chnl->channel_users[client_index]->sockID, "Voce foi removido do canal", strlen("Voce foi removido do canal\n"), 0);
+
+	remove_user(chnl->channel_users[client_index]);
+
+	chnl->n_members--;
+
+	char temp[128] = "O usuario ";
+	strcat(temp, chnl->channel_users[client_index]->name);
+	strcat(temp, " foi removido\n");
+
+	send_msg(chnl->channel_users[client_index], temp);	
+	chnl->channel_users[client_index]->conn_channel = NULL;
+
 	return 0;
 }
 
@@ -178,14 +209,18 @@ int quit_server(user *client, bool* quit){
 	char msg[4096];
 	strcpy(msg, client->name);
 	strcat(msg, " saiu\n");
+
+	remove_user(client);
+
 	send_msg(client, msg); 
+
+	client->conn_channel->n_members--;
 
 	return 0;
 }
 
 // Funçao controladora que interpreta o comando e chama a funçao apropriada
 int client_cmd(char *input, user *client, int channel_count, int user_count, bool *quit){
-	printf("%s\n", input);
 	if(strncmp(input, "/ping", strlen("/ping")) == 0){
 		return client_ping(client);
 
@@ -198,7 +233,7 @@ int client_cmd(char *input, user *client, int channel_count, int user_count, boo
 	} else if (strncmp(input, "/join", strlen("/join")) == 0){
 		int index = search_channel((input+strlen("/join ")));
 		if(index == -1)
-			return create_channel((input+strlen("/join ")), client, channel_count);
+			return create_channel((input+strlen("/join ")), client);
 		
 		return join_channel(&channelList[index], client);
 
@@ -229,7 +264,7 @@ int client_cmd(char *input, user *client, int channel_count, int user_count, boo
 			strcat(msg, (input+strlen("/whois ")));
 			strcat(msg, " tem IP: ");
 			char temp[64];
-			sprintf(temp, "%d\n", whois(client, input));
+			sprintf(temp, "%s\n", whois(client, input));
 			strcat(msg, temp);
 			return send(client->sockID, msg, strlen(msg), 0);
 		}
@@ -259,9 +294,6 @@ void* clientThread(void *param){
 	bool quit = false;
 
 	char data[MAX_MSG];
-	// Recebe o nome de usuario desse cliente
-	//int read = recv(client->sockID, data, MAX_MSG, 0);
-	//strncpy(client->name, data, read);
 
 	int read;
 
@@ -271,7 +303,6 @@ void* clientThread(void *param){
 		bzero(data, MAX_MSG);
 		read = recv(client->sockID, data, MAX_MSG, 0);
 		data[read] = '\0';
-		printf("aqui tem %s\n", data);
 		int erro = client_cmd(data, client, channel_count, user_count, &quit);
 		
 		printf("erro %d\n", erro);
@@ -284,15 +315,10 @@ void* clientThread(void *param){
 // Driver Code
 int main(){
 	// Array for thread
-	int user_count = 0;
-	int channel_count = 0;
 	pthread_t thread[MAX_USERS];
 
 	// set handler function
-	//signal(SIGINT, interruptionHandler);
-
-
-
+	signal(SIGINT, interruptionHandler);
 
 	// Initialize variables
 	int serverSocket;

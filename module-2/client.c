@@ -41,7 +41,7 @@ void* clientThread(void *sockID){
 // Driver Code
 int main() {	
 	// set handler function
-	//signal(SIGINT, interruptionHandler);
+	signal(SIGINT, interruptionHandler);
 	
 	int user_socket = socket(PF_INET, SOCK_STREAM, 0);
 
