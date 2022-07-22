@@ -9,3 +9,8 @@
 
 O Sistema Operacional utilizado na compilação é o Ubuntu 21.10<br>
 O compilador utilizado, como requisitado na descrição do projeto, é o ``` gcc ```
+
+Link do video de apresentação:
+https://drive.google.com/file/d/1S9vgfLiY91J3OXCxHJ3tFxeTPn_iwWQu/view?usp=sharing
+
+Obs.: Nós tivemos problemas com o meet, e com o a edição do vídeo e por isso só conseguimos colocar o link com a gravação no dia 22/07.
