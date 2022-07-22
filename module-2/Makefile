@@ -15,7 +15,7 @@ client: client.o perm
 all: $(objects)
 
 %.o: %.c $(DEPS)
-	$(CC) $(CFLAGS) $(inc) $< -o $@
+	$(CC) $(CFLAGS) $< -o $@
 
 perm:
 	chmod +x *.o

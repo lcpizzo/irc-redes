@@ -58,7 +58,7 @@ channel *search_channel(channel **channelList, char *channelName){
 	int i;
 
 	for(i = 0; i < MAX_CHANNELS; i++){
-		if(channelList[i] == NULL)
+		if(channelList[i]->channelName == NULL)
 			return NULL;
 		if(strcmp(channelName, channelList[i]->channelName) == 0)
 			return channelList[i];
@@ -210,7 +210,7 @@ int client_cmd(channel **channelList, user *userList, char *input, user *client,
 	} else {
 		// no momento se a mensagem enviada e diferente de alguma dessas
 		//		a mensagem e enviada a todos
-		if(client->conn_channel != NULL)
+		if(client->conn_channel == 0)
 			return -1;
 		if(!client->mute)
 			return send_msg(client, input);
